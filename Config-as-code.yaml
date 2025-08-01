@@ -10,6 +10,32 @@
 
   tasks:
 
+    - name: "Create AWS Credential"
+      awx.awx.credential:
+        name: "AWS Access"
+        organization: "Default"
+        credential_type: "Amazon Web Services"
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: false
+        inputs:
+          username: "{{ aws_access_key }}"
+          password: "{{ aws_secret_key }}"
+
+    - name: "Create EC2 SSH Credential"
+      awx.awx.credential:
+        name: "EC2 SSH Key"
+        organization: "Default"
+        credential_type: "Machine"
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: false
+        inputs:
+          username: "ubuntu"
+          ssh_key_data: "{{ ssh_private_key }}"
+
     - name: Create inventory
       awx.awx.inventory:
         name: "{{ inventory_name }}"
