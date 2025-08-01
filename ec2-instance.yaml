@@ -1,0 +1,85 @@
+---
+- name: "CREATE EC2 INSTANCE"
+  hosts: localhost
+  connection: local
+
+  tasks:
+    - name: "CREATE SECURITY GROUP"
+      amazon.aws.ec2_security_group:
+        name: eks_ec2_security_group
+        description: "security group for eks ec2 instance"
+        rules:
+          - proto: tcp
+            ports:
+              - 22
+              - 80
+            cidr_ip: 0.0.0.0/0
+        region: us-east-1
+
+    - name: "CREATE EC2 INSTANCE"
+      amazon.aws.ec2_instance:
+        instance_type: t2.micro
+        image_id: ami-020cba7c55df1f615
+        key_name: nv-kp
+        region: us-east-1
+        security_groups:
+          - eks_ec2_security_group
+        tags:
+          Name: eks_ec2_instance_{{ item }}
+      register: ec2_instance
+      loop:
+        - 1
+        - 2
+
+    - name: "PRINT EC2 INSTANCE PUBLIC IP"
+      ansible.builtin.debug:
+        msg: "{{ ec2_instance.results[item].instances[0].tags.Name }} : {{ ec2_instance.results[item].instances[0].public_ip_address }}"
+      loop:
+        - 0
+        - 1
+
+    - name: "ADD EC2 INSTANCE TO INVENTORY"
+      ansible.builtin.add_host:
+        name: "{{ ec2_instance.results[item].instances[0].public_ip_address }}"
+        groups:
+          - eks_ec2_instances
+      loop:
+        - 0
+        - 1
+
+    - name: "WAIT FOR EC2 INSTANCE TO BE READY"
+      ansible.builtin.wait_for:
+        host: "{{ ec2_instance.results[item].instances[0].public_ip_address }}"
+        port: 22
+        delay: 10
+        timeout: 300
+      loop:
+        - 0
+        - 1
+
+- name: "CONNECT TO EC2 INSTANCE AND INSTALL APACHE2"
+  hosts: eks_ec2_instances
+  connection: ssh
+  user: ubuntu
+  become: true
+
+
+  vars:
+    ansible_ssh_private_key_file: /Users/sreenichenna/Downloads/nv-kp.pem
+    ansible_python_interpreter: /usr/bin/python3.12
+
+  tasks:
+    - name: "UPDATE APT CACHE"
+      ansible.builtin.apt:
+        update_cache: true
+
+    - name: "INSTALL APACHE2"
+      ansible.builtin.apt:
+        name: apache2
+        state: present
+
+    - name: "START APACHE2 SERVICE"
+      ansible.builtin.service:
+        name: apache2
+        state: started
+        enabled: true
