@@ -14,5 +14,5 @@ ls -lrt
 
 ```bash
 # Run the awx-launch playbook
-ansible-playbook awx-launch -J  # provide the vault password for controller.yaml
+ansible-playbook awx-launch.yaml -J  # provide the vault password for controller.yaml
 ```
