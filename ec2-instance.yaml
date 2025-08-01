@@ -14,10 +14,6 @@
     ec2_instance_tag: ec2_instance
 
   tasks:
-    - name: Extract real AMI ID from survey input
-      set_fact:
-        image_id: "{{ image_id_raw.split(' ')[0] }}"
-
     - name: "CREATE SECURITY GROUP"
       amazon.aws.ec2_security_group:
         name: ec2_security_group
@@ -33,7 +29,7 @@
     - name: "CREATE EC2 INSTANCES"
       amazon.aws.ec2_instance:
         instance_type: "{{ instance_type }}"
-        image_id: "{{ image_id }}"
+        image_id: "{{ image_id_raw.split(' ')[0] }}"
         key_name: "{{ key_name }}"
         region: "{{ region }}"
         security_groups:
