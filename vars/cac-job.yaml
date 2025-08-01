@@ -1,0 +1,8 @@
+---
+organization: Default
+project_name: cac-launch
+project_scm_url: https://github.com/srinivassrinu842/aap-demo.git
+inventory_name: Demo Inventory
+ee_name: Custom EE for Automation with RHEL9
+job_template_name: Launch CaC
+vault_creds: Vault Creds for Launch CaC job
