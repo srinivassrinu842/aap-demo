@@ -9,7 +9,7 @@
     instance_count: 2
     instance_type: t2.mirco
     region: us-east-1
-    image_id: ami-020cba7c55df1f615
+    image_id_raw: "ami-020cba7c55df1f615 (ubuntu)"
     key_name: nv-kp
     ec2_instance_tag: ec2_instance
 
