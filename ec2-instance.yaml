@@ -7,6 +7,8 @@
   vars:
     # Default to 2 if not passed
     instance_count: 2
+    instance_type: t2.mirco
+    region: us-east-1
 
   tasks:
     - name: "CREATE SECURITY GROUP"
@@ -23,10 +25,10 @@
 
     - name: "CREATE EC2 INSTANCES"
       amazon.aws.ec2_instance:
-        instance_type: t2.micro
+        instance_type: "{{ instance_type }}"
         image_id: ami-020cba7c55df1f615
         key_name: nv-kp
-        region: us-east-1
+        region: "{{ region }}"
         security_groups:
           - eks_ec2_security_group
         tags:
