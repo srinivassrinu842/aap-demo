@@ -1,0 +1,12 @@
+---
+organization: Default
+project_name: aap-demo
+project_scm_url: https://github.com/srinivassrinu842/aap-demo.git
+inventory_name: EC2 Inventory
+inventory_source_name: EC2 AWS Dynamic Source
+credential_aws_name: AWS Access
+credential_ssh_name: EC2 SSH Key
+ee_name: Custom EE for Automation with RHEL9
+job_template_name: Launch EC2 Instances
+workflow_template_name: EC2 Workflow
+region: us-east-1
