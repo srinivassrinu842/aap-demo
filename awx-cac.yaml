@@ -1,0 +1,53 @@
+---
+- name: "Create Project In AWX"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars_files:
+    - vars/controller.yaml
+    - vars/cac-job.yaml
+
+  tasks:
+
+    - name: "Create Vault Credential"
+      awx.awx.credential:
+        name: "{{ vault_creds }}"
+        organization: "Default"
+        credential_type: "Vault"
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: false
+        inputs:
+          vault_password: "{{ vault_pass }}"
+
+    - name: Create project
+      awx.awx.project:
+        name: "{{ project_name }}"
+        organization: "{{ organization }}"
+        scm_type: git
+        scm_url: "{{ project_scm_url }}"
+        scm_update_on_launch: true
+        state: present
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: "{{ validate_certs }}"
+
+    - name: Create job template
+      awx.awx.job_template:
+        name: "{{ job_template_name }}"
+        description: "Launch CaC Playbook"
+        inventory: "{{ inventory_name }}"
+        project: "{{ project_name }}"
+        playbook: Config-as-code.yaml
+        execution_environment: "{{ ee_name }}"
+        state: present
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: "{{ validate_certs }}"
+        credentials:
+          - "{{ vault_creds }}"
+          
