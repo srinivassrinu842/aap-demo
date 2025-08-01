@@ -9,11 +9,14 @@
     instance_count: 2
     instance_type: t2.mirco
     region: us-east-1
+    image_id: ami-020cba7c55df1f615
+    key_name: nv-kp
+    ec2_instance_tag: ec2_instance
 
   tasks:
     - name: "CREATE SECURITY GROUP"
       amazon.aws.ec2_security_group:
-        name: eks_ec2_security_group
+        name: ec2_security_group
         description: "security group for eks ec2 instance"
         rules:
           - proto: tcp
@@ -21,18 +24,18 @@
               - 22
               - 80
             cidr_ip: 0.0.0.0/0
-        region: us-east-1
+        region: "{{ region }}"
 
     - name: "CREATE EC2 INSTANCES"
       amazon.aws.ec2_instance:
         instance_type: "{{ instance_type }}"
-        image_id: ami-020cba7c55df1f615
-        key_name: nv-kp
+        image_id: "{{ image_id }}"
+        key_name: "{{ key_name }}"
         region: "{{ region }}"
         security_groups:
-          - eks_ec2_security_group
+          - ec2_security_group
         tags:
-          Name: eks_ec2_instance_{{ item }}
+          Name: {{ ec2_instance_tag }}_{{ item }}
       register: ec2_instance
       loop: "{{ query('sequence', 'start=1 end=' + instance_count | string) }}"
 
@@ -45,7 +48,7 @@
       ansible.builtin.add_host:
         name: "{{ ec2_instance.results[item].instances[0].public_ip_address }}"
         groups:
-          - eks_ec2_instances
+          - ec2_instances
       loop: "{{ range(0, instance_count|int) | list }}"
 
     - name: "WAIT FOR EC2 INSTANCE TO BE READY"
@@ -57,7 +60,7 @@
       loop: "{{ range(0, instance_count|int) | list }}"
 
 - name: "CONNECT TO EC2 INSTANCE AND INSTALL APACHE2"
-  hosts: eks_ec2_instances
+  hosts: ec2_instances
   connection: ssh
   user: ubuntu
   become: true
