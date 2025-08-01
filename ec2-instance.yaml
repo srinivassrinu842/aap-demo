@@ -2,6 +2,11 @@
 - name: "CREATE EC2 INSTANCE"
   hosts: localhost
   connection: local
+  gather_facts: false
+
+  vars:
+    # Default to 2 if not passed
+    instance_count: 2
 
   tasks:
     - name: "CREATE SECURITY GROUP"
@@ -16,7 +21,7 @@
             cidr_ip: 0.0.0.0/0
         region: us-east-1
 
-    - name: "CREATE EC2 INSTANCE"
+    - name: "CREATE EC2 INSTANCES"
       amazon.aws.ec2_instance:
         instance_type: t2.micro
         image_id: ami-020cba7c55df1f615
@@ -27,25 +32,19 @@
         tags:
           Name: eks_ec2_instance_{{ item }}
       register: ec2_instance
-      loop:
-        - 1
-        - 2
+      loop: "{{ query('sequence', 'start=1 end=' + instance_count | string) }}"
 
     - name: "PRINT EC2 INSTANCE PUBLIC IP"
       ansible.builtin.debug:
         msg: "{{ ec2_instance.results[item].instances[0].tags.Name }} : {{ ec2_instance.results[item].instances[0].public_ip_address }}"
-      loop:
-        - 0
-        - 1
+      loop: "{{ range(0, instance_count|int) | list }}"
 
     - name: "ADD EC2 INSTANCE TO INVENTORY"
       ansible.builtin.add_host:
         name: "{{ ec2_instance.results[item].instances[0].public_ip_address }}"
         groups:
           - eks_ec2_instances
-      loop:
-        - 0
-        - 1
+      loop: "{{ range(0, instance_count|int) | list }}"
 
     - name: "WAIT FOR EC2 INSTANCE TO BE READY"
       ansible.builtin.wait_for:
@@ -53,20 +52,13 @@
         port: 22
         delay: 10
         timeout: 300
-      loop:
-        - 0
-        - 1
+      loop: "{{ range(0, instance_count|int) | list }}"
 
 - name: "CONNECT TO EC2 INSTANCE AND INSTALL APACHE2"
   hosts: eks_ec2_instances
   connection: ssh
   user: ubuntu
   become: true
-
-
-  vars:
-    ansible_ssh_private_key_file: /Users/sreenichenna/Downloads/nv-kp.pem
-    ansible_python_interpreter: /usr/bin/python3.12
 
   tasks:
     - name: "UPDATE APT CACHE"
