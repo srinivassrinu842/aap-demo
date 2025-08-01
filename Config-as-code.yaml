@@ -1,0 +1,191 @@
+---
+- name: "Create Project, Inventory, Credentials, Job Template, Workflow with Survey in AWX"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars_files:
+    - vars/controller.yaml
+    - vars/job.yaml
+
+  tasks:
+
+    - name: Create inventory
+      awx.awx.inventory:
+        name: "{{ inventory_name }}"
+        organization: "{{ organization }}"
+        state: present
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: "{{ validate_certs }}"
+
+    - name: Add dynamic EC2 source to inventory
+      awx.awx.inventory_source:
+        name: "{{ inventory_source_name }}"
+        source: ec2
+        inventory: "{{ inventory_name }}"
+        credential: "{{ credential_aws_name }}"
+        overwrite: true
+        overwrite_vars: true
+        update_on_launch: true
+        source_vars:
+          keyed_groups:
+            - prefix: tag
+              key: tags
+          hostnames:
+            - tag:Name
+          compose:
+            ansible_host: public_ip_address
+        state: present
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: "{{ validate_certs }}"
+
+    - name: Trigger inventory source update (immediate sync)
+      awx.awx.inventory_source_update:
+        inventory: "{{ inventory_name }}"
+        name: "{{ inventory_source_name }}"
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: "{{ validate_certs }}"
+
+    - name: Create project
+      awx.awx.project:
+        name: "{{ project_name }}"
+        organization: "{{ organization }}"
+        scm_type: git
+        scm_url: "{{ project_scm_url }}"
+        scm_update_on_launch: true
+        state: present
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: "{{ validate_certs }}"
+
+    - name: Create job template
+      awx.awx.job_template:
+        name: "{{ job_template_name }}"
+        description: "Launch EC2 Instances from Playbook"
+        inventory: "{{ inventory_name }}"
+        project: "{{ project_name }}"
+        playbook: ec2-instance.yaml
+        credentials:
+          - "{{ credential_aws_name }}"
+          - "{{ credential_ssh_name }}"
+        execution_environment: "{{ ee_name }}"
+        state: present
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: "{{ validate_certs }}"
+
+    - name: Create workflow job template
+      awx.awx.workflow_job_template:
+        name: "{{ workflow_template_name }}"
+        description: EC2 Instance Provisioning Workflow
+        organization: "{{ organization }}"
+        inventory: "{{ inventory_name }}"
+        state: present
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: "{{ validate_certs }}"
+
+    - name: Look up EC2 dynamic inventory source
+      awx.awx.inventory_source:
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: "{{ validate_certs }}"
+        name: "EC2 AWS Dynamic Source"
+        inventory: "{{ inventory_name }}"
+        state: present
+      register: ec2_inventory_source
+
+    - name: Add inventory sync node to workflow (after EC2 launch)
+      awx.awx.workflow_job_template_node:
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        workflow_job_template: "{{ workflow_template_name }}"
+        identifier: sync-node
+        unified_job_template: "{{ ec2_inventory_source.id }}"
+        validate_certs: "{{ validate_certs }}"
+
+    - name: Add job template to workflow (EC2 launch)
+      awx.awx.workflow_job_template_node:
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        workflow_job_template: "{{ workflow_template_name }}"
+        identifier: launch-node
+        unified_job_template: "{{ job_template_name }}"
+        validate_certs: "{{ validate_certs }}"
+        success_nodes:
+          - sync-node          
+
+    - name: Add survey to workflow (region, instance type, count)
+      awx.awx.workflow_job_template:
+        name: "{{ workflow_template_name }}"
+        survey_enabled: true
+        survey_spec:
+          name: EC2 Survey
+          description: Parameters for EC2 provisioning
+          spec:
+            - question_name: "How many EC2 instances to create?"
+              question_description: "Enter number of EC2 instances"
+              required: true
+              type: integer
+              variable: instance_count
+              default: 1
+              min: 1
+              max: 10
+            - question_name: "Select Instance Type"
+              question_description: "Choose EC2 instance type"
+              required: true
+              type: multiplechoice
+              variable: instance_type
+              choices:
+                - t2.micro
+                - t2.medium
+                - t2.nano
+                - t2.large
+              default: t2.micro
+            - question_name: "Select AWS Region"
+              question_description: "Choose AWS Region to deploy"
+              required: true
+              type: multiplechoice
+              variable: region
+              choices:
+                - us-east-1
+                - us-east-2
+                - us-west-1
+                - us-west-2
+              default: us-east-1
+            - question_name: "Select AMI Image ID"
+              question_description: "Choose AMI image to use"
+              required: true
+              type: multiplechoice
+              variable: image_id
+              choices:
+                - "ami-020cba7c55df1f615 (ubuntu)"
+              default: "ami-020cba7c55df1f615 (ubuntu)"
+            - question_name: "Enter Key Name"
+              question_description: "Specify the SSH key name"
+              required: true
+              type: text
+              variable: key_name
+              default: "nv-kp"
+            - question_name: "Enter EC2 Instance Tag"
+              question_description: "Provide tag to identify EC2 instances"
+              required: true
+              type: text
+              variable: ec2_instance_tag
+              default: "ec2_instance"
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: "{{ validate_certs }}"
